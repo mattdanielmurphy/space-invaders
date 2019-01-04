@@ -1,26 +1,28 @@
 {
-  "name": "TEMPLATE",
-  "version": "1.0.0",
-  "description": "D-e-s-c-r-i-p-t-i-o-n",
-  "main": "index.js",
-  "author": "Matthew Daniel Murphy",
-  "license": "MIT",
-  "devDependencies": {
-    "babel-core": "^6.26.3",
-    "babel-loader": "^7.1.5",
-    "css-loader": "^1.0.0",
-    "html-webpack-plugin": "^3.2.0",
-    "node-sass": "^4.9.2",
-    "normalize.css": "^8.0.0",
-    "sass-loader": "^7.0.1",
-    "style-loader": "^0.21.0",
-    "webpack": "^4.8.1",
-    "webpack-cli": "^2.1.3",
-    "webpack-dev-server": "^3.1.4"
-  },
-  "scripts": {
-    "start": "webpack-dev-server --open --mode development",
-    "build": "webpack"
-  },
-  "dependencies": {}
+	"name": "TEMPLATE",
+	"version": "1.0.0",
+	"description": "D-e-s-c-r-i-p-t-i-o-n",
+	"main": "index.js",
+	"author": "Matthew Daniel Murphy",
+	"license": "MIT",
+	"devDependencies": {
+		"babel-core": "^6.26.3",
+		"babel-loader": "^7.1.5",
+		"css-loader": "^1.0.0",
+		"html-webpack-plugin": "^3.2.0",
+		"node-sass": "^4.11.0",
+		"normalize.css": "^8.0.0",
+		"sass-loader": "^7.0.1",
+		"style-loader": "^0.21.0",
+		"webpack": "^4.8.1",
+		"webpack-cli": "^2.1.3",
+		"webpack-dev-server": "^3.1.4"
+	},
+	"scripts": {
+		"start": "webpack-dev-server --open --mode development",
+		"build": "webpack"
+	},
+	"dependencies": {
+		"suncalc": "^1.8.0"
+	}
 }
