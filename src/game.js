@@ -28,6 +28,7 @@ class Player {
 		this.speed = 4
 		this.moving = false
 		this.color = '#e5e5e5'
+		this.cooling = false
 	}
 	setTopXPos() {
 		this.topXPos = this.xPos + this.width / 2 - this.topWidth / 2
@@ -65,18 +66,24 @@ class Player {
 		ctx.fillRect(this.topXPos, this.yPos, this.topWidth, this.topHeight)
 	}
 	shoot() {
-		console.log('POW!')
+		this.bulletYPos = this.yPos - this.topHeight
+		this.bulletXPos = this.topXPos
 	}
 	startShooting() {
-		if (!this.shootingInterval) {
-			this.bulletYPos = this.yPos - this.topHeight
-			this.bulletXPos = this.topXPos
+		if (!this.shootingInterval && !this.cooling) {
 			this.shoot()
-			this.shootingInterval = window.setTimeout(() => {
-				window.clearTimeout(this.shootingInterval)
-				this.shootingInterval = undefined
+			this.cooling = true
+			window.setTimeout(() => {
+				this.cooling = false
+			}, 500)
+			this.shootingInterval = window.setInterval(() => {
+				this.shoot()
 			}, 500)
 		}
+	}
+	stopShooting() {
+		window.clearInterval(this.shootingInterval)
+		this.shootingInterval = undefined
 	}
 	handleKeyDown(e) {
 		if (e.key === 'a' || e.key === 'ArrowLeft') this.moving = 'left'
@@ -89,6 +96,7 @@ class Player {
 		const keyMovesRight = e.key === 'd' || e.key === 'ArrowRight'
 		if (keyMovesLeft && this.moving === 'left') this.moving = false
 		if (keyMovesRight && this.moving === 'right') this.moving = false
+		if (e.key === ' ') this.stopShooting()
 	}
 }
 
