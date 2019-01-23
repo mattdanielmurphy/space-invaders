@@ -1,11 +1,12 @@
 import './autoNightmode.js'
-import { resolve } from 'url'
+const Player = require('./components/player')
 
 const canvas = document.getElementsByTagName('canvas')[0]
 let ctx
 let px = 4
 let player
 let gun
+let draw
 
 function setupCanvas(canvas) {
 	// HiDPI Canvas (https://www.html5rocks.com/en/tutorials/canvas/hidpi/)
@@ -18,118 +19,59 @@ function setupCanvas(canvas) {
 	return ctx
 }
 
-class Player {
-	constructor() {
-		this.width = 20
-		this.height = 12
-		this.xPos = canvas.width / 2 - this.width
-		this.yPos = 80 * px
-		this.topWidth = this.width / 4
-		this.topHeight = this.height / 1.8
-		this.topYPos = this.yPos - this.topHeight
-		this.topXPos = this.xPos + this.width / 2 - this.topWidth / 2
-		this.gunYPos = this.topYPos - this.topHeight
-		this.speed = 4
-		this.moving = false
-		this.color = '#e5e5e5'
+class Draw {
+	constructor(ctx, settings) {
+		this.ctx = ctx
+		this.settings = settings
+		Object.assign(this, settings)
+		this.playerColor = '#fff'
 	}
-	setTopXPos() {
-		this.topXPos = this.xPos + this.width / 2 - this.topWidth / 2
+	getTopX(bottomX) {
+		return Number(bottomX) + this.bottomWidth / 2 - this.topWidth / 2
 	}
-	moveLeft() {
-		let futurePos = this.xPos - this.speed
-		if (futurePos > 0) this.xPos = futurePos
-		this.setTopXPos()
+	drawPlayer() {
+		Object.assign(this, this.settings)
+		this.ctx.fillStyle = this.playerColor
+		this.ctx.fillRect(this.bottomX, this.bottomY, this.bottomWidth, this.bottomHeight)
+		this.ctx.fillRect(this.getTopX(this.bottomX), this.topY, this.topWidth, this.topHeight)
 	}
-	moveRight() {
-		let futurePos = this.xPos + this.speed
-		if (futurePos < canvas.width - this.width) this.xPos = futurePos
-		this.setTopXPos()
-	}
-	moveIfKeyHeld() {
-		if (this.moving !== false) {
-			this.moving === 'right' ? this.moveRight() : this.moveLeft()
-		}
-	}
-	draw() {
-		ctx.fillStyle = this.color
-		// drawBottom
-		ctx.fillRect(this.xPos, this.yPos, this.width, this.height)
-		// drawTop
-		ctx.fillRect(this.topXPos, this.topYPos, this.topWidth, this.topHeight)
-	}
-	handleKeyDown(e) {
-		if (e.key === 'a' || e.key === 'ArrowLeft') this.moving = 'left'
-		if (e.key === 'd' || e.key === 'ArrowRight') this.moving = 'right'
-		if (e.key === ' ') gun.startShooting()
-	}
-	handleKeyUp(e) {
-		// only stop moving in direction if keyup matches current direction
-		const keyMovesLeft = e.key === 'a' || e.key === 'ArrowLeft'
-		const keyMovesRight = e.key === 'd' || e.key === 'ArrowRight'
-		if (keyMovesLeft && this.moving === 'left') this.moving = false
-		if (keyMovesRight && this.moving === 'right') this.moving = false
-		if (e.key === ' ') gun.stopShooting()
+	drawBullets() {
+		this.ctx.fillStyle = this.bulletColor
+		// fillRect for each bullet
+		Object.entries(this.settings.bullets).forEach(([ x, y ]) => {
+			// trim unique identifiers to get just x pos
+			const xPosString = x.toString()
+			x = /([\d.]+)/.exec(xPosString)[0]
+			this.ctx.fillRect(this.getTopX(x), y, this.bulletWidth, this.bulletHeight)
+		})
 	}
 }
-
-function tick() {
-	ctx.clearRect(0, 0, canvas.width, canvas.height)
-	player.moveIfKeyHeld()
-	// player.bulletYPos -= 1
-	player.draw()
-	requestAnimationFrame(tick)
-	gun.tick()
-}
-
-async function setupGame() {
-	ctx = setupCanvas(canvas)
-	let promise = new Promise((res, rej) => {
-		player = new Player()
-		res('done')
-	})
-	await promise
-	gun = new Gun(player.gunYPos)
-
-	const request = requestAnimationFrame(tick)
-	window.addEventListener('keydown', (e) => player.handleKeyDown(e))
-	window.addEventListener('keyup', (e) => player.handleKeyUp(e))
-}
-
-// this.yPos - this.topHeight
-setupGame()
 
 class Gun {
-	constructor(yPos) {
-		this.yPos = yPos
+	constructor(settings) {
+		Object.assign(this, settings)
+		this.settings = settings
 		this.cooling = false
-		this.cooldownTime = 200
-		this.bulletSpeed = 5
-		this.bullets = {}
-		this.bulletColor = '#F52A2A'
-		this.bulletWidth = player.topWidth
-		this.bulletHeight = player.topHeight / 1.5
 	}
 	startCooldown() {
 		this.cooling = true
 		window.setTimeout(() => {
 			this.cooling = false
-			console.log('cooling done')
-			if (this.bulletWaiting) gun.fireBullet()
+			if (this.bulletWaiting) this.fireBullet()
 			this.bulletWaiting = false
 		}, this.cooldownTime)
 	}
 	startShooting() {
 		if (this.cooling && !this.shootingInterval) {
-			// if a shot is fired before the cooldown has ended, that shot is stored in buffer and will fire once cooldown ends. Only one shot will be stored.
+			// if shot fired cooldown has ended, shot is stored in buffer (max 1 shot); buffer shot fires once cooldown ends
 			this.bulletWaiting = true
 		} else if (!this.shootingInterval) {
 			// For tapping spacebar
-			gun.fireBullet()
+			this.fireBullet()
 
 			// For holding down spacebar
 			this.shootingInterval = window.setInterval(() => {
-				gun.fireBullet()
+				this.fireBullet()
 			}, this.cooldownTime)
 		}
 	}
@@ -137,40 +79,135 @@ class Gun {
 		window.clearInterval(this.shootingInterval)
 		this.shootingInterval = undefined
 	}
-	fireBullet(xPos = player.topXPos) {
+	fireBullet() {
+		const x = this.settings.bottomX
 		this.startCooldown()
-		if (this.bullets[xPos]) {
-			// Find unique number to append to duplicated xPos bullet
+		if (this.bullets[x]) {
+			// add unique identifier to bullet:
 			for (let i = 0; i < 10; i++) {
-				let noXPosAtI = !this.bullets[`${xPos}-${i}`]
-				if (noXPosAtI) {
-					this.bullets[`${xPos}-${i}`] = this.yPos
+				let uniqueId = !this.bullets[`${x}-${i}`]
+				if (uniqueId) {
+					this.bullets[`${x}-${i}`] = this.topY
 					break
 				}
 			}
 		} else {
-			this.bullets[xPos] = this.yPos
+			this.bullets[x] = this.topY
 		}
 	}
-	drawBullets() {
-		ctx.fillStyle = this.bulletColor
-		// fillRect for each bullet
-		Object.entries(this.bullets).forEach(([ xPos, yPos ]) => {
-			const strXPos = xPos.toString()
-			// trim -0, -1, -2
-			xPos = /([\d.]+)/.exec(strXPos)[0]
-			ctx.fillRect(xPos, yPos, this.bulletWidth, this.bulletHeight)
-		})
-	}
 	tick() {
-		this.drawBullets()
-		// decrease the yPos of every bullet until less than 0; then delete it
-		Object.entries(this.bullets).forEach(([ xPos, yPos ]) => {
-			if (yPos > 0) {
-				this.bullets[xPos] -= this.bulletSpeed
+		// decrease the y of every bullet until less than 0; then delete it
+		Object.entries(this.bullets).forEach(([ x, y ]) => {
+			// if above top of screen, remove
+			if (y < 0) {
+				delete this.bullets[x]
 			} else {
-				delete this.bullets[xPos]
+				// if block hit, remove bullet and block
+				this.bullets[x] -= this.bulletSpeed
 			}
 		})
+		this.settings.bullets = this.bullets
 	}
 }
+
+async function setupGame() {
+	ctx = setupCanvas(canvas)
+
+	const settings = new function() {
+		this.bottomWidth = 20
+		this.bottomHeight = 12
+		this.topWidth = this.bottomWidth / 4
+		this.topHeight = this.bottomHeight / 1.8
+		this.bottomX = canvas.width / 2 - this.bottomWidth
+		this.topY = 80 * px
+		this.bottomY = this.topY + this.topHeight
+		// Gun settings
+		this.cooldownTime = 200
+		this.bulletSpeed = 5
+		this.bullets = {}
+		this.bulletColor = '#F52A2A'
+		this.bulletWidth = this.topWidth
+		this.bulletHeight = this.topHeight / 1.5
+	}()
+
+	await new Promise((resolve) => {
+		draw = new Draw(ctx, settings)
+		resolve('done')
+	})
+
+	await new Promise((resolve) => {
+		gun = new Gun(settings)
+		resolve('done')
+	})
+
+	player = new Player(settings, canvas, gun)
+
+	// TICK
+
+	const request = requestAnimationFrame(tick)
+	window.addEventListener('keydown', (e) => player.handleKeyDown(e))
+	window.addEventListener('keyup', (e) => player.handleKeyUp(e))
+}
+
+function tick() {
+	// req VAR ctx
+	ctx.clearRect(0, 0, canvas.width, canvas.height)
+	// req OBJ player
+	player.moveIfKeyHeld()
+	// req OBJ player
+	draw.drawPlayer()
+	requestAnimationFrame(tick)
+	// req OBJ gun
+	gun.tick()
+	draw.drawBullets()
+	// req OBJ block
+	block.draw()
+}
+
+setupGame()
+
+// class Block {
+// 	constructor() {
+// 		this.bottomX = 10
+// 		this.y = 10
+// 		// this.blockSize = 2
+// 		// array of pixels
+// 		// this.pixels = [ [ 1, 0, 1, 1 ], [ 1, 1, 0, 1 ] ]
+// 		this.pixels = {}
+// 		// to generate blocks, give an x, y, height, width
+// 		// in generating a block, pixel array is filled
+// 		// when bullet reaches a pixel, pixel and bullet are destroyed
+// 	}
+// 	drawPixel(x, y) {
+// 		// req VAR ctx // req VAR px
+// 		ctx.fillRect(x * px, y * px, px, px)
+// 	}
+// 	draw() {
+// 		// req VAR ctx
+// 		ctx.fillStyle = 'white'
+// 		Object.entries(this.pixels).forEach(([ x, yValues ]) => {
+// 			yValues.forEach((y) => {
+// 				// req VAR ctx // req VAR px
+// 				ctx.fillRect(x, y, px, px)
+// 			})
+// 		})
+// 	}
+// 	createBlock(x, y, h, w) {
+// 		// add to pixels array from x and y for given height and width
+// 		// without x and y:
+// 		// for h = 1, w = 1:
+// 		// push([0, 0], [0, 1], [1, 1], [1, 0])
+// 		for (let hI = y; hI < h + y; hI += 1) {
+// 			for (let wI = x; wI < w + x; wI += 1) {
+// 				// this.pixels.push({ [hI]: wI })
+// 				this.pixels[hI] ? this.pixels[hI].push(wI) : (this.pixels[hI] = [])
+// 			}
+// 		}
+// 	}
+// 	destroyBlock(x, y) {
+// 		// this.pixels[y][x] = 0
+// 	}
+// }
+
+// const block = new Block()
+// block.createBlock(20, 20, 20, 20)
